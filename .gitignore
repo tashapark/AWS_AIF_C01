@@ -1,0 +1,21 @@
+# Python 관련
+__pycache__/
+*.py[cod]
+*$py.class
+.venv
+venv/
+ENV/
+
+# Streamlit 및 로그 파일
+.streamlit/config.toml
+*.log
+
+# PDF 및 데이터 (오답노트 생성 시 임시 파일 등)
+temp_*.pdf
+wrong_answers.json
+data/*.pdf
+data/questions.json
+
+# 운영체제 관련
+.DS_Store
+Thumbs.db
