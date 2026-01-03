@@ -2,6 +2,7 @@ import streamlit as st
 import json
 import re
 import random
+import os
 from datetime import datetime
 
 # 1. 데이터 로드
@@ -87,7 +88,14 @@ def get_choices_for_language(question_en, question_ko, lang_mode, use_random_mix
         # 한글 질문 본문 사용
         body = ko_body if ko_body else en_body
         # 한글 선택지 우선 사용 (choices_ko 필드 또는 파싱된 한글 선택지)
-        choices = ko_choices_from_data if ko_choices_from_data else (ko_choices if ko_choices else en_choices)
+        # ko_choices_from_data가 비어있지 않은 경우에만 사용
+        if ko_choices_from_data and len(ko_choices_from_data) > 0:
+            choices = ko_choices_from_data
+        elif ko_choices and len(ko_choices) > 0:
+            choices = ko_choices
+        else:
+            # 한글 선택지가 없으면 영어 선택지를 사용 (임시)
+            choices = en_choices
         return body, choices
     elif lang_mode == "영어":
         # 영어로만 표시
@@ -166,11 +174,12 @@ def generate_pdf(wrong_questions):
             # 문제 본문
             question_ko = q.get('question_ko', '').replace('\u0000', '').strip()
             question_en = q.get('question_en', '').replace('\u0000', '').strip()
+            is_hotspot = 'HOTSPOT' in question_en.upper() or 'HOTSPOT' in question_ko.upper()
             
             pdf.set_font("helvetica", 'B', 11)
             pdf.cell(page_width, 8, text="[Question - Korean]", ln=True)
             pdf.set_font("helvetica", size=10)
-            safe_text = to_ascii_safe(question_ko, 200)
+            safe_text = to_ascii_safe(question_ko, 500)
             if safe_text:
                 pdf.multi_cell(page_width, 6, text=safe_text)
             
@@ -181,6 +190,14 @@ def generate_pdf(wrong_questions):
             safe_en = to_ascii_safe(question_en, 500)
             if safe_en:
                 pdf.multi_cell(page_width, 6, text=safe_en)
+            
+            # HOTSPOT 문제의 이미지 처리
+            if is_hotspot:
+                pdf.ln(3)
+                pdf.set_font("helvetica", 'I', 10)
+                pdf.cell(page_width, 8, text="[Note: This is a HOTSPOT question. Original PDF contains an image/diagram that should be referenced.]", ln=True)
+                pdf.set_font("helvetica", size=10)
+            
             pdf.ln(5)
             
             # 선택지
@@ -216,7 +233,10 @@ def generate_pdf(wrong_questions):
             pdf.line(line_start_x, pdf.get_y(), line_end_x, pdf.get_y())
             pdf.ln(10)
         
-        return pdf.output(dest='S').encode('latin-1', errors='ignore')
+        # pdf.output(dest='S')는 이미 bytearray를 반환하므로 encode() 불필요
+        pdf_bytes = pdf.output(dest='S')
+        # bytearray를 bytes로 변환 (Streamlit download_button이 bytes를 기대)
+        return bytes(pdf_bytes)
     except Exception as e:
         # 에러 발생 시 None 반환 (디버깅용: 에러 메시지 출력 가능)
         import sys
@@ -415,6 +435,14 @@ if choices and len(choices) > 0:
 else:
     st.info("⚠️ 이 문제는 선택지가 없거나 특수 형식입니다 (예: HOTSPOT 문제)")
     st.markdown(f'<div class="question-text">{question_body}</div>', unsafe_allow_html=True)
+    
+    # HOTSPOT 문제의 이미지 표시
+    image_path = q.get('image_path')
+    if image_path and os.path.exists(image_path):
+        st.markdown("---")
+        st.markdown("### 🖼️ 문제 이미지")
+        st.image(image_path, use_container_width=True, caption=f"Question {q['id']} Image")
+    
     st.session_state.selected_answer = None
     st.session_state.selected_answers = []
 
@@ -489,7 +517,10 @@ if st.session_state.exam_mode and not st.session_state.exam_finished:
                 st.session_state.selected_answers = []
                 st.rerun()
     with col2:
-        if st.button("다음 문제 ▶", use_container_width=True, disabled=(st.session_state.exam_current_index >= len(st.session_state.exam_questions) - 1)):
+        # 답변을 선택해야만 다음 문제로 넘어갈 수 있음
+        has_answer = st.session_state.selected_answer is not None or len(st.session_state.selected_answers) > 0
+        is_last = st.session_state.exam_current_index >= len(st.session_state.exam_questions) - 1
+        if st.button("다음 문제 ▶", use_container_width=True, disabled=(is_last or not has_answer)):
             if st.session_state.exam_current_index < len(st.session_state.exam_questions) - 1:
                 st.session_state.exam_current_index += 1
                 st.session_state.show_answer = False
@@ -507,9 +538,10 @@ if st.session_state.exam_finished and st.session_state.exam_mode:
     st.markdown("---")
     st.markdown("## 🎯 시험 결과")
     
-    # 정답 채점
+    # 정답 채점 및 오답 노트에 추가
     correct_count = 0
     total_count = len(st.session_state.exam_questions)
+    wrong_questions = []
     
     for idx, exam_q in enumerate(st.session_state.exam_questions):
         user_answer = st.session_state.exam_answers.get(str(idx))
@@ -517,6 +549,16 @@ if st.session_state.exam_finished and st.session_state.exam_mode:
             correct_answers = extract_correct_answers(exam_q.get('answer', ''))
             if correct_answers and user_answer == correct_answers[0]:
                 correct_count += 1
+            else:
+                # 오답인 경우 오답 노트에 추가
+                if exam_q not in st.session_state.wrong_answers:
+                    st.session_state.wrong_answers.append(exam_q)
+                    wrong_questions.append(exam_q)
+        else:
+            # 답을 선택하지 않은 문제도 오답으로 처리
+            if exam_q not in st.session_state.wrong_answers:
+                st.session_state.wrong_answers.append(exam_q)
+                wrong_questions.append(exam_q)
     
     score_percent = (correct_count / total_count * 100) if total_count > 0 else 0
     passing_score = 70.0
@@ -534,6 +576,10 @@ if st.session_state.exam_finished and st.session_state.exam_mode:
         st.success(f"🎉 **합격입니다!** ({score_percent:.1f}%)")
     else:
         st.error(f"❌ **불합격입니다.** ({score_percent:.1f}% / 합격 기준: {passing_score}%)")
+    
+    # 오답 노트에 추가된 문제 수 표시
+    if wrong_questions:
+        st.info(f"💡 {len(wrong_questions)}개 오답이 오답 노트에 자동으로 추가되었습니다.")
     
     if st.button("🔁 새 시험 시작", use_container_width=True, type="primary"):
         st.session_state.exam_mode = False
