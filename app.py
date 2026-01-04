@@ -124,123 +124,234 @@ def extract_correct_answers(answer_text):
 
 # PDF 생성 함수 (위로 이동)
 def generate_pdf(wrong_questions):
-    """오답 노트를 PDF로 생성 (문제, 답, 해설 포함)"""
+    """오답 노트를 PDF로 생성 (문제, 답, 해설 포함) - reportlab 사용"""
     try:
-        from fpdf import FPDF
-        from fpdf.enums import XPos, YPos
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import mm
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+        from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT, TA_JUSTIFY
+        from io import BytesIO
+        import os
     except ImportError:
         return None
     
     try:
-        pdf = FPDF()
-        pdf.set_auto_page_break(auto=True, margin=15)
-        pdf.add_page()
+        # 메모리 버퍼에 PDF 생성
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=A4, 
+                               rightMargin=20*mm, leftMargin=20*mm,
+                               topMargin=20*mm, bottomMargin=20*mm)
         
-        # 페이지 너비 (기본값: 210mm에서 마진 제외)
-        page_width = pdf.w - 2 * pdf.l_margin
+        # 스타일 설정
+        styles = getSampleStyleSheet()
         
-        # 기본 폰트 사용 (Helvetica - fpdf2의 기본 폰트)
-        pdf.set_font("helvetica", size=12)
+        # 한글 폰트 등록 (macOS의 경우)
+        font_paths = [
+            "/System/Library/Fonts/Supplemental/AppleGothic.ttf",
+            "/System/Library/Fonts/AppleGothic.ttf",
+            "/Library/Fonts/AppleGothic.ttf",
+        ]
+        
+        korean_font_name = "AppleGothic"
+        korean_font_bold_name = "AppleGothic-Bold"
+        korean_font_registered = False
+        
+        for font_path in font_paths:
+            if os.path.exists(font_path):
+                try:
+                    pdfmetrics.registerFont(TTFont("AppleGothic", font_path))
+                    # Bold 폰트도 같은 파일로 등록 (대부분의 TTF는 regular와 bold가 같은 파일에 있음)
+                    pdfmetrics.registerFont(TTFont("AppleGothic-Bold", font_path))
+                    korean_font_registered = True
+                    break
+                except:
+                    continue
+        
+        # 한글 폰트를 사용할 수 없으면 기본 폰트 사용 (한글이 깨질 수 있음)
+        if not korean_font_registered:
+            korean_font_name = "Helvetica"
+            korean_font_bold_name = "Helvetica-Bold"
+        
+        # 커스텀 스타일 정의
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontName=korean_font_name,
+            fontSize=18,
+            textColor='black',
+            alignment=TA_CENTER,
+            spaceAfter=12,
+        )
+        
+        date_style = ParagraphStyle(
+            'CustomDate',
+            parent=styles['Normal'],
+            fontName=korean_font_name,
+            fontSize=10,
+            alignment=TA_RIGHT,
+            spaceAfter=15,
+        )
+        
+        question_title_style = ParagraphStyle(
+            'QuestionTitle',
+            parent=styles['Heading2'],
+            fontName=korean_font_name,
+            fontSize=11,  # 9pt 기준으로 2pt 크게 (bold 효과)
+            textColor='black',
+            spaceAfter=6,
+            spaceBefore=8,
+        )
+        
+        question_text_style = ParagraphStyle(
+            'QuestionText',
+            parent=styles['Normal'],
+            fontName=korean_font_name,
+            fontSize=9,
+            alignment=TA_LEFT,
+            spaceAfter=6,
+            leading=12,
+        )
+        
+        choice_style = ParagraphStyle(
+            'Choice',
+            parent=styles['Normal'],
+            fontName=korean_font_name,
+            fontSize=8,
+            alignment=TA_LEFT,
+            spaceAfter=4,
+            leftIndent=8,
+            leading=11,
+        )
+        
+        answer_title_style = ParagraphStyle(
+            'AnswerTitle',
+            parent=styles['Heading3'],
+            fontName=korean_font_name,
+            fontSize=10,  # 9pt 기준으로 1pt 크게 (bold 효과)
+            textColor='black',
+            spaceAfter=4,
+            spaceBefore=6,
+        )
+        
+        answer_text_style = ParagraphStyle(
+            'AnswerText',
+            parent=styles['Normal'],
+            fontName=korean_font_name,
+            fontSize=8,
+            alignment=TA_LEFT,
+            spaceAfter=10,
+            leading=11,
+        )
+        
+        # Bold 스타일 (가독성을 위해 fontSize를 약간 크게)
+        bold_style = ParagraphStyle(
+            'Bold',
+            parent=styles['Normal'],
+            fontName=korean_font_name,
+            fontSize=9,  # 일반보다 1pt 크게
+            alignment=TA_LEFT,
+        )
+        
+        question_bold_style = ParagraphStyle(
+            'QuestionBold',
+            parent=styles['Normal'],
+            fontName=korean_font_name,
+            fontSize=10,  # 9pt 기준으로 1pt 크게 (bold 효과)
+            alignment=TA_LEFT,
+            spaceAfter=6,
+            leading=13,
+        )
+        
+        answer_bold_style = ParagraphStyle(
+            'AnswerBold',
+            parent=styles['Normal'],
+            fontName=korean_font_name,
+            fontSize=9,  # 8pt 기준으로 1pt 크게 (bold 효과)
+            alignment=TA_LEFT,
+            spaceAfter=10,
+            leading=12,
+        )
+        
+        # 스토리 (PDF 콘텐츠) 구성
+        story = []
         
         # 제목
-        pdf.set_font("helvetica", 'B', 16)
-        pdf.cell(page_width, 10, text="AWS AIF-C01 Wrong Answer Notes", align='C')
-        pdf.ln(5)
-        
-        # 날짜
         date_str = datetime.now().strftime("%Y-%m-%d")
-        pdf.set_font("helvetica", size=10)
-        pdf.cell(page_width, 8, text=f"Date: {date_str}", align='R')
-        pdf.ln(10)
-
-        # 텍스트를 ASCII로 변환하는 헬퍼 함수
-        def to_ascii_safe(text, max_len=500):
-            """텍스트를 ASCII로 변환 (유니코드 문자는 ?로 대체)"""
-            if not text:
-                return ""
-            # 특수 문자 제거 및 ASCII 변환
-            safe = ''.join(c if ord(c) < 128 and c.isprintable() else '?' for c in str(text)[:max_len])
-            # 불필요한 특수 문자 제거
-            safe = safe.replace('•', '-').replace('·', '-').replace('…', '...')
-            return safe
+        story.append(Paragraph("AWS AIF-C01 오답 노트", title_style))
+        story.append(Paragraph(f"날짜: {date_str}", date_style))
+        story.append(Spacer(1, 8))
         
         # 각 문제 작성
         for i, q in enumerate(wrong_questions):
-            # 문제 번호
-            pdf.set_font("helvetica", 'B', 14)
-            pdf.cell(page_width, 10, text=f"Question {i+1} (Original ID: {q['id']})", ln=True)
-            pdf.ln(5)
+            # 문제 번호 (Bold - fontSize를 크게)
+            question_title = f"문제 {i+1} (원본 ID: {q['id']})"
+            story.append(Paragraph(question_title, question_title_style))
             
-            # 문제 본문
+            # 문제 본문 (한글, Bold - fontSize를 크게)
             question_ko = q.get('question_ko', '').replace('\u0000', '').strip()
-            question_en = q.get('question_en', '').replace('\u0000', '').strip()
-            is_hotspot = 'HOTSPOT' in question_en.upper() or 'HOTSPOT' in question_ko.upper()
+            if question_ko:
+                # HTML 엔티티 및 특수 문자 처리
+                question_ko_clean = question_ko.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                story.append(Paragraph(question_ko_clean, question_bold_style))
             
-            pdf.set_font("helvetica", 'B', 11)
-            pdf.cell(page_width, 8, text="[Question - Korean]", ln=True)
-            pdf.set_font("helvetica", size=10)
-            safe_text = to_ascii_safe(question_ko, 500)
-            if safe_text:
-                pdf.multi_cell(page_width, 6, text=safe_text)
+            story.append(Spacer(1, 4))
             
-            pdf.ln(3)
-            pdf.set_font("helvetica", 'B', 11)
-            pdf.cell(page_width, 8, text="[Question - English]", ln=True)
-            pdf.set_font("helvetica", size=10)
-            safe_en = to_ascii_safe(question_en, 500)
-            if safe_en:
-                pdf.multi_cell(page_width, 6, text=safe_en)
-            
-            # HOTSPOT 문제의 이미지 처리
-            if is_hotspot:
-                pdf.ln(3)
-                pdf.set_font("helvetica", 'I', 10)
-                pdf.cell(page_width, 8, text="[Note: This is a HOTSPOT question. Original PDF contains an image/diagram that should be referenced.]", ln=True)
-                pdf.set_font("helvetica", size=10)
-            
-            pdf.ln(5)
-            
-            # 선택지
+            # 선택지 (한글)
             choices_ko = q.get('choices_ko', {})
-            en_body, en_choices = parse_choices(question_en)
+            en_body, en_choices = parse_choices(q.get('question_en', ''))
             
             if choices_ko or en_choices:
-                pdf.set_font("helvetica", 'B', 11)
-                pdf.cell(page_width, 8, text="[Choices]", ln=True)
-                pdf.set_font("helvetica", size=10)
-                
                 choices_to_show = choices_ko if choices_ko else en_choices
                 for letter in sorted(choices_to_show.keys()):
                     choice_text = str(choices_to_show[letter])
-                    safe_choice = to_ascii_safe(choice_text, 100)
-                    if safe_choice:
-                        pdf.multi_cell(page_width, 5, text=f"{letter}. {safe_choice}")
-                pdf.ln(5)
+                    # HTML 엔티티 처리
+                    choice_text_clean = choice_text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                    story.append(Paragraph(f"<b>{letter}.</b> {choice_text_clean}", choice_style))
+                story.append(Spacer(1, 4))
+            
+            # HOTSPOT 문제 처리
+            question_en = q.get('question_en', '').replace('\u0000', '').strip()
+            is_hotspot = 'HOTSPOT' in question_en.upper() or 'HOTSPOT' in question_ko.upper()
+            if is_hotspot:
+                story.append(Paragraph("<i>※ 이 문제는 HOTSPOT 문제입니다. 원본 PDF의 이미지/다이어그램을 참조하세요.</i>", 
+                                      ParagraphStyle('HotspotNote', parent=styles['Normal'], 
+                                                    fontName=korean_font_name, fontSize=9, 
+                                                    textColor='gray', spaceAfter=8)))
             
             # 정답 및 해설
-            answer = q.get('answer', '')
-            pdf.set_font("helvetica", 'B', 11)
-            pdf.cell(page_width, 8, text="[Answer and Explanation]", ln=True)
-            pdf.set_font("helvetica", size=10)
-            safe_answer = to_ascii_safe(answer, 500)
-            if safe_answer:
-                pdf.multi_cell(page_width, 6, text=safe_answer)
-            pdf.ln(10)
+            answer = q.get('answer', '').replace('\u0000', '').strip()
+            if answer:
+                # 기본 해설 텍스트 제거
+                default_explanation = "이 답변이 정답인 이유를 설명하는 상세한 해설입니다."
+                if default_explanation in answer:
+                    # 기본 해설 텍스트가 포함된 경우 제거 (괄호 포함)
+                    answer = answer.replace(f" ({default_explanation})", "").replace(f"({default_explanation})", "").strip()
+                
+                story.append(Paragraph("정답 및 해설", answer_title_style))
+                # HTML 엔티티 처리
+                answer_clean = answer.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                story.append(Paragraph(answer_clean, answer_bold_style))
             
-            # 구분선 (페이지 너비 기준)
-            line_start_x = pdf.l_margin
-            line_end_x = pdf.w - pdf.r_margin
-            pdf.line(line_start_x, pdf.get_y(), line_end_x, pdf.get_y())
-            pdf.ln(10)
+            # 문제 간 구분선
+            if i < len(wrong_questions) - 1:
+                story.append(Spacer(1, 6))
+                story.append(Paragraph("<hr/>", styles['Normal']))
+                story.append(Spacer(1, 6))
         
-        # pdf.output(dest='S')는 이미 bytearray를 반환하므로 encode() 불필요
-        pdf_bytes = pdf.output(dest='S')
-        # bytearray를 bytes로 변환 (Streamlit download_button이 bytes를 기대)
-        return bytes(pdf_bytes)
+        # PDF 생성
+        doc.build(story)
+        buffer.seek(0)
+        return buffer.getvalue()
+        
     except Exception as e:
-        # 에러 발생 시 None 반환 (디버깅용: 에러 메시지 출력 가능)
+        # 에러 발생 시 None 반환
         import sys
         print(f"PDF 생성 오류: {type(e).__name__}: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
         return None
 
 data = load_data()
@@ -518,7 +629,20 @@ if st.session_state.exam_mode and not st.session_state.exam_finished:
                 st.rerun()
     with col2:
         # 답변을 선택해야만 다음 문제로 넘어갈 수 있음
+        # 단, HOTSPOT 문제나 선택지가 없는 문제는 답변 없이도 넘어갈 수 있음
         has_answer = st.session_state.selected_answer is not None or len(st.session_state.selected_answers) > 0
+        
+        # HOTSPOT 문제나 선택지가 없는 경우 확인
+        current_q = st.session_state.exam_questions[st.session_state.exam_current_index] if st.session_state.exam_current_index < len(st.session_state.exam_questions) else None
+        if current_q:
+            question_en = current_q.get('question_en', '')
+            question_ko = current_q.get('question_ko', '')
+            is_hotspot = 'HOTSPOT' in question_en.upper() or 'HOTSPOT' in question_ko.upper()
+            _, current_choices = parse_choices(question_en)
+            # 선택지가 없거나 HOTSPOT 문제면 답변 없이도 넘어갈 수 있음
+            if not current_choices or len(current_choices) == 0 or is_hotspot:
+                has_answer = True
+        
         is_last = st.session_state.exam_current_index >= len(st.session_state.exam_questions) - 1
         if st.button("다음 문제 ▶", use_container_width=True, disabled=(is_last or not has_answer)):
             if st.session_state.exam_current_index < len(st.session_state.exam_questions) - 1:

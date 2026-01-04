@@ -487,7 +487,7 @@ def enhance_questions():
             if 'choices_ko' not in q:
                 should_translate = True
             elif q.get('choices_ko'):
-                # choices_ko가 있지만 영어로 되어 있거나 잘못된 번역(예: "학습ing")이 있는지 확인
+                # choices_ko가 있지만 영어로 되어 있거나 잘못된 번역(예: "학습ing", "배포 the", "구성 Amazon")이 있는지 확인
                 first_choice = list(q['choices_ko'].values())[0] if q['choices_ko'] else ""
                 if first_choice:
                     # 영어만 있거나, 한글 뒤에 영어 접미사가 붙은 경우(예: "학습ing", "배포ment") 재번역
@@ -496,7 +496,12 @@ def enhance_questions():
                         re.search(r'[가-힣]+(ing|ment|tion|sion|ness|ity|ly|ed|er|est)\b', choice, re.IGNORECASE)
                         for choice in q['choices_ko'].values()
                     )
-                    if not has_korean or has_wrong_suffix:
+                    # 부분 번역 패턴 확인 (예: "배포 the", "구성 Amazon", "사용 Amazon", "보장 that")
+                    has_partial_translation = any(
+                        re.search(r'[가-힣]+\s+(the|Amazon|AWS|SageMaker|Bedrock|Rekognition|Comprehend|Polly|Lex|that|to|for|on|with|by|in|at|from|and|or)\s+', choice, re.IGNORECASE)
+                        for choice in q['choices_ko'].values()
+                    )
+                    if not has_korean or has_wrong_suffix or has_partial_translation:
                         should_translate = True
         
         if should_translate:
