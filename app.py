@@ -11,6 +11,14 @@ def load_data():
     with open("data/questions.json", "r", encoding="utf-8") as f:
         return json.load(f)
 
+def clean_question_text(text):
+    """문제 텍스트에서 끝의 숫자 및 불필요한 문자 제거"""
+    if not text:
+        return text
+    # 끝의 숫자 제거 (공백 포함)
+    text = re.sub(r'[\s•·]*\d+[\s•·]*$', '', text)
+    return text.strip()
+
 def parse_choices(question_text):
     """질문 텍스트에서 선택지(A, B, C, D, E)를 파싱하여 분리"""
     if not question_text:
@@ -47,6 +55,8 @@ def parse_choices(question_text):
     
     question_body = text[:question_end_pos].strip()
     question_body = re.sub(r'\s+', ' ', question_body)
+    # 끝의 숫자 제거
+    question_body = clean_question_text(question_body)
     
     return question_body, choices
 
@@ -293,6 +303,8 @@ def generate_pdf(wrong_questions):
             # 문제 본문 (한글, Bold - fontSize를 크게)
             question_ko = q.get('question_ko', '').replace('\u0000', '').strip()
             if question_ko:
+                # 끝의 숫자 제거
+                question_ko = clean_question_text(question_ko)
                 # HTML 엔티티 및 특수 문자 처리
                 question_ko_clean = question_ko.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
                 story.append(Paragraph(question_ko_clean, question_bold_style))
@@ -369,7 +381,8 @@ if "current_index" not in st.session_state:
     st.session_state.exam_answers = {}
     st.session_state.exam_current_index = 0
     st.session_state.exam_finished = False
-    st.session_state.lang_mode = "한글"  # "한글", "영어", "섞기"
+    st.session_state.lang_mode = "한글"  # "한글", "English"
+    st.session_state.show_english_toggle = {}  # 문제별 영어/한글 토글 상태
 
 # 시험 모드 확인
 if st.session_state.exam_mode and st.session_state.exam_questions:
@@ -420,6 +433,14 @@ st.markdown("""
         line-height: 2 !important;
         padding: 0.6rem 0 !important;
         color: #FAFAFA !important;
+        white-space: nowrap !important;
+        min-width: fit-content !important;
+    }
+    
+    /* EN 체크박스 줄바꿈 방지 */
+    div[data-testid*="stCheckbox"] label {
+        white-space: nowrap !important;
+        word-break: keep-all !important;
     }
     
     .stButton > button {
@@ -439,6 +460,16 @@ st.markdown("""
     h3 {
         font-size: 1.5rem !important;
     }
+    
+    /* EN 체크박스 줄바꿈 방지 */
+    label[data-testid*="baseButton"] {
+        white-space: nowrap !important;
+    }
+    
+    div[data-baseweb="checkbox"] label {
+        white-space: nowrap !important;
+        min-width: fit-content !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -450,15 +481,16 @@ st.sidebar.title("⚙️ 설정")
 # 언어 모드 선택
 lang_mode = st.sidebar.radio(
     "🌐 언어 모드",
-    options=["한글", "English", "섞기"],
-    index=["한글", "English", "섞기"].index(st.session_state.lang_mode) if st.session_state.lang_mode in ["한글", "English", "섞기"] else 0,
-    help="한글: 모든 문제를 한글로 표시\n영어: 모든 문제를 영어로 표시\n섞기: 한글과 영어를 랜덤으로 섞어 표시"
+    options=["한글", "English"],
+    index=["한글", "English"].index(st.session_state.lang_mode) if st.session_state.lang_mode in ["한글", "English"] else 0,
+    help="한글: 모든 문제를 한글로 표시\n영어: 모든 문제를 영어로 표시"
 )
 st.session_state.lang_mode = lang_mode
 
 # 시험 모드 시작 버튼
 if not st.session_state.exam_mode:
-    if st.sidebar.button("📝 시험 모드 시작 (65문제)", use_container_width=True, type="primary"):
+    st.sidebar.caption("📝 시험 모드 시작")
+    if st.sidebar.button("시험 모드 시작 (65문제)", use_container_width=True, type="primary"):
         # 랜덤으로 65문제 선택 (실제 시험 형식)
         num_questions = min(65, len(data))
         st.session_state.exam_questions = random.sample(data, num_questions)
@@ -493,8 +525,7 @@ question_en = q.get('question_en', '')
 question_ko = q.get('question_ko', '')
 
 # 언어 모드에 따라 질문 본문과 선택지 가져오기
-# 섞기 모드에서는 문제 ID 기반으로 고정 (같은 문제는 항상 같은 언어)
-question_body, choices = get_choices_for_language(question_en, question_ko, lang_mode, (lang_mode == "섞기"), q)
+question_body, choices = get_choices_for_language(question_en, question_ko, lang_mode, False, q)
 
 # 선택지가 없으면 영어에서 다시 파싱 시도
 if not choices:
@@ -502,8 +533,45 @@ if not choices:
 
 is_multiple = is_multiple_choice(question_en) or is_multiple_choice(question_ko)
 
-# 질문 본문 표시
-st.markdown(f'<div class="question-text">{question_body}</div>', unsafe_allow_html=True)
+# 문제 텍스트 끝 숫자 제거
+question_body = clean_question_text(question_body)
+
+# 영어/한글 토글 버튼
+toggle_key = f"toggle_{q['id']}"
+if toggle_key not in st.session_state.show_english_toggle:
+    st.session_state.show_english_toggle[toggle_key] = False
+
+col_toggle1, col_toggle2 = st.columns([3, 50])
+with col_toggle1:
+    toggle_label = "EN" if lang_mode == "한글" else "KO"
+    toggle_help = "영어 원문 보기" if lang_mode == "한글" else "한글 원문 보기"
+    show_english = st.checkbox(toggle_label, key=f"lang_toggle_{current_idx}", 
+                               value=st.session_state.show_english_toggle.get(toggle_key, False),
+                               help=toggle_help,
+                               label_visibility="visible")
+    st.session_state.show_english_toggle[toggle_key] = show_english
+
+# 질문 본문 표시 (토글에 따라 반대로 표시)
+# 한글 모드일 때: EN 체크 → 영어 표시
+# 영어 모드일 때: EN 체크 → 한글 표시
+if show_english:
+    if lang_mode == "한글":
+        # 한글 모드에서 EN 체크 → 영어 표시
+        en_body, en_choices_for_display = parse_choices(question_en)
+        display_question = clean_question_text(en_body) if en_body else question_en
+        if en_choices_for_display:
+            choices = en_choices_for_display
+    else:
+        # 영어 모드에서 EN 체크 → 한글 표시
+        display_question = question_ko if question_ko else question_body
+        # 한글 선택지 사용
+        ko_choices_from_data = q.get('choices_ko', {})
+        if ko_choices_from_data:
+            choices = ko_choices_from_data
+else:
+    display_question = question_body
+
+st.markdown(f'<div class="question-text">{display_question}</div>', unsafe_allow_html=True)
 
 # 선택지 표시
 if choices and len(choices) > 0:
@@ -545,7 +613,34 @@ if choices and len(choices) > 0:
             st.session_state.exam_answers[str(current_idx)] = selected
 else:
     st.info("⚠️ 이 문제는 선택지가 없거나 특수 형식입니다 (예: HOTSPOT 문제)")
-    st.markdown(f'<div class="question-text">{question_body}</div>', unsafe_allow_html=True)
+    
+    # 영어/한글 토글 버튼 (선택지가 없는 경우에도)
+    toggle_key_no_choice = f"toggle_{q['id']}_no_choice"
+    if toggle_key_no_choice not in st.session_state.show_english_toggle:
+        st.session_state.show_english_toggle[toggle_key_no_choice] = False
+    
+    col_toggle1_no_choice, col_toggle2_no_choice = st.columns([3, 50])
+    with col_toggle1_no_choice:
+        toggle_label_no_choice = "EN" if lang_mode == "한글" else "KO"
+        toggle_help_no_choice = "영어 원문 보기" if lang_mode == "한글" else "한글 원문 보기"
+        show_english_no_choice = st.checkbox(toggle_label_no_choice, key=f"lang_toggle_no_choice_{current_idx}",
+                                             value=st.session_state.show_english_toggle.get(toggle_key_no_choice, False),
+                                             help=toggle_help_no_choice,
+                                             label_visibility="visible")
+        st.session_state.show_english_toggle[toggle_key_no_choice] = show_english_no_choice
+    
+    if show_english_no_choice:
+        if lang_mode == "한글":
+            # 한글 모드에서 EN 체크 → 영어 표시
+            en_body, _ = parse_choices(question_en)
+            display_question_no_choice = clean_question_text(en_body) if en_body else question_en
+        else:
+            # 영어 모드에서 EN 체크 → 한글 표시
+            display_question_no_choice = question_ko if question_ko else question_body
+    else:
+        display_question_no_choice = question_body
+    
+    st.markdown(f'<div class="question-text">{display_question_no_choice}</div>', unsafe_allow_html=True)
     
     # HOTSPOT 문제의 이미지 표시
     image_path = q.get('image_path')
