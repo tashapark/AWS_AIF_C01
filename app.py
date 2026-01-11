@@ -410,7 +410,7 @@ st.markdown("""
     .main .block-container {
         padding-top: 2rem;
         padding-bottom: 2rem;
-        max-width: 1500px;
+        max-width: 2000px;
     }
     
     .question-text {
