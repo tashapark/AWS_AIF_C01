@@ -160,9 +160,9 @@ def generate_pdf(wrong_questions):
         
         # 한글 폰트 등록 (macOS의 경우)
         font_paths = [
-            "/System/Library/Fonts/Supplemental/AppleGothic.ttf",
-            "/System/Library/Fonts/AppleGothic.ttf",
-            "/Library/Fonts/AppleGothic.ttf",
+            "/usr/share/fonts/truetype/nanum/NanumGothic.ttf", # 리눅스 서버용 나눔폰트 예시
+            "NanumGothic.ttf", # 현재 폴더에 폰트를 넣었을 경우
+            "/System/Library/Fonts/Supplemental/AppleGothic.ttf", # 기존 맥용
         ]
         
         korean_font_name = "AppleGothic"
@@ -261,7 +261,7 @@ def generate_pdf(wrong_questions):
             'Bold',
             parent=styles['Normal'],
             fontName=korean_font_name,
-            fontSize=11,  # 일반보다 1pt 크게
+            fontSize=12,  # 일반보다 1pt 크게
             alignment=TA_LEFT,
         )
         
@@ -269,7 +269,7 @@ def generate_pdf(wrong_questions):
             'QuestionBold',
             parent=styles['Normal'],
             fontName=korean_font_name,
-            fontSize=10,  # 9pt 기준으로 1pt 크게 (bold 효과)
+            fontSize=11,  # 9pt 기준으로 1pt 크게 (bold 효과)
             alignment=TA_LEFT,
             spaceAfter=6,
             leading=13,
@@ -279,7 +279,7 @@ def generate_pdf(wrong_questions):
             'AnswerBold',
             parent=styles['Normal'],
             fontName=korean_font_name,
-            fontSize=9,  # 8pt 기준으로 1pt 크게 (bold 효과)
+            fontSize=10,  # 8pt 기준으로 1pt 크게 (bold 효과)
             alignment=TA_LEFT,
             spaceAfter=10,
             leading=12,
