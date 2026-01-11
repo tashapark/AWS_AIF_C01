@@ -229,7 +229,7 @@ def generate_pdf(wrong_questions):
             'Choice',
             parent=styles['Normal'],
             fontName=korean_font_name,
-            fontSize=8,
+            fontSize=10,
             alignment=TA_LEFT,
             spaceAfter=4,
             leftIndent=8,
@@ -261,7 +261,7 @@ def generate_pdf(wrong_questions):
             'Bold',
             parent=styles['Normal'],
             fontName=korean_font_name,
-            fontSize=9,  # 일반보다 1pt 크게
+            fontSize=11,  # 일반보다 1pt 크게
             alignment=TA_LEFT,
         )
         
@@ -410,31 +410,65 @@ st.markdown("""
     .main .block-container {
         padding-top: 2rem;
         padding-bottom: 2rem;
-        max-width: 900px;
+        max-width: 1500px;
     }
     
     .question-text {
         font-size: 1.3rem !important;
-        line-height: 1.8 !important;
+        line-height: 2.2 !important;
         margin-bottom: 2rem !important;
         color: #FAFAFA !important;
         font-weight: 400 !important;
+        word-spacing: 0.1em !important;
+        letter-spacing: 0.02em !important;
     }
     
-    .stRadio > div > label {
-        font-size: 1.15rem !important;
-        line-height: 2.2 !important;
-        padding: 0.8rem 0 !important;
+    /* 라디오 버튼 선택지 텍스트 크기 */
+    .stRadio > div > label,
+    .stRadio label,
+    div[data-testid*="stRadio"] label,
+    div[data-testid*="stRadio"] > div > label,
+    .stRadio > div > div > label {
+        font-size: 1.3rem !important;
+        line-height: 2.2rem !important;
+        padding: 0.6rem 0 !important;
         color: #FAFAFA !important;
     }
     
-    .stCheckbox > label {
-        font-size: 1.15rem !important;
-        line-height: 2 !important;
-        padding: 0.6rem 0 !important;
+    /* 라디오 버튼 내부 텍스트 요소 - 문제 텍스트와 동일한 크기 */
+    .stRadio label span,
+    .stRadio label p,
+    .stRadio label div,
+    .stRadio label strong,
+    div[data-testid*="stRadio"] label span,
+    div[data-testid*="stRadio"] label p,
+    div[data-testid*="stRadio"] label div,
+    div[data-testid*="stRadio"] label strong {
+        font-size: 1.3rem !important;
+        line-height: 2.2rem !important;
+        white-space: nowrap !important;
+        word-break: keep-all !important;
+        color: #FAFAFA !important;
+    }
+    
+    /* 체크박스 선택지 */
+    .stCheckbox > label,
+    .stCheckbox label,
+    div[data-testid*="stCheckbox"] label {
+        font-size: 1.3rem !important;
+        line-height: 2.2rem !important;
+        padding: 0.5rem 0 !important;
         color: #FAFAFA !important;
         white-space: nowrap !important;
         min-width: fit-content !important;
+    }
+    
+    /* 멀티셀렉트도 포함 */
+    .stMultiSelect label,
+    div[data-testid*="stMultiSelect"] label {
+        font-size: 1.3rem !important;
+        line-height: 2.2rem !important;
+        color: #FAFAFA !important;
     }
     
     /* EN 체크박스 줄바꿈 방지 */
@@ -444,9 +478,9 @@ st.markdown("""
     }
     
     .stButton > button {
-        font-size: 1.1rem;
-        padding: 0.6rem 2rem;
-        font-weight: 500;
+        font-size: 1.1rem !important;
+        padding: 0.6rem 2rem !important;
+        font-weight: 500 !important;
     }
     
     h1 {
@@ -454,11 +488,53 @@ st.markdown("""
     }
     
     h2 {
-        font-size: 1.8rem !important;
+        font-size: 2.0rem !important;
     }
     
     h3 {
-        font-size: 1.5rem !important;
+        font-size: 2.0rem !important;
+    }
+    
+    /* 선택지 라디오/체크박스 텍스트 크기 */
+    .stRadio label, .stCheckbox label, div[data-testid*="stRadio"] label p, div[data-testid*="stCheckbox"] label p {
+        font-size: 1.3rem !important;
+        line-height: 2.2rem !important;
+        color: #FAFAFA !important;
+    }
+
+    /* 정답/오답 알림 박스 전체 스타일 */
+    div[data-testid="stAlert"] {
+        padding: 1.5rem !important;
+        border-radius: 0.5rem !important;
+    }
+
+    /* 알림 박스 내부의 모든 텍스트 크기를 문제와 동일하게 (1.3rem) */
+    div[data-testid="stAlert"] font, 
+    div[data-testid="stAlert"] p, 
+    div[data-testid="stAlert"] li, 
+    div[data-testid="stAlert"] div {
+        font-size: 1.3rem !important;
+        line-height: 2.2rem !important;
+        color: #FAFAFA !important; /* 글씨는 밝은색으로 통일 */
+    }
+
+    /* [오답 처리] 빨간 글씨 대신 테두리만 강조 */
+    div[data-testid="stStatusWidget"] + div div[class*="st-emotion-cache-"] , 
+    .stError {
+        border: 3px solid #FF4444 !important; /* 빨간 테두리 강조 */
+        background-color: rgba(255, 68, 68, 0.1) !important;
+        color: #FAFAFA !important;
+    }
+
+    /* [정답 처리] 녹색 테두리 */
+    .stSuccess {
+        border: 3px solid #28A745 !important;
+        background-color: rgba(40, 167, 69, 0.1) !important;
+    }
+
+    /* 경고/정보 박스 텍스트 색상 유지 */
+    .stWarning, .stInfo {
+        border: 2px solid #FFA500 !important;
     }
     
     /* EN 체크박스 줄바꿈 방지 */
@@ -674,21 +750,25 @@ if not st.session_state.exam_mode and st.session_state.show_answer:
         correct_letter = correct_answers[0] if correct_answers else None
         is_correct = st.session_state.selected_answer == correct_letter
     
+    # 결과 출력
     if is_correct:
-        st.success(f"✅ **정답입니다!**\n\n{q['answer']}")
+        st.success(f"✅ **정답입니다!**\n\n{answer_text}")
     else:
-        st.error(f"❌ **틀렸습니다.**\n\n**정답:** {q['answer']}")
+        # 빨간 테두리 박스 안에 흰색 글씨로 표시됨
+        st.error(f"❌ **틀렸습니다.**\n\n**정답:** {answer_text}")
+        
+        # 사용자가 선택한 답 표시
         if is_multiple:
             if st.session_state.selected_answers:
-                st.warning(f"**선택하신 답:** {', '.join(st.session_state.selected_answers)}")
+                st.info(f"🧐 **선택하신 답:** {', '.join(st.session_state.selected_answers)}")
         else:
             if st.session_state.selected_answer:
-                st.warning(f"**선택하신 답:** {st.session_state.selected_answer}")
+                st.info(f"🧐 **선택하신 답:** {st.session_state.selected_answer}")
         
         if q not in st.session_state.wrong_answers:
             st.session_state.wrong_answers.append(q)
-            st.info("💡 오답 노트에 자동으로 추가되었습니다.")
-    
+            st.toast("오답 노트에 추가되었습니다.", icon="📝")
+
     st.markdown("---")
     
     col1, col2 = st.columns(2)

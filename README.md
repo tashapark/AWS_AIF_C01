@@ -11,6 +11,6 @@
 1. 저장소 클론
 2. 가상환경 생성 및 패키지 설치
    ```bash
-   python -m venv venv
-   source venv/bin/activate  # Windows: venv\Scripts\activate
+   python -m venv .venv
+   source .venv/bin/activate # Windows: .venv\Scripts\activate
    pip install streamlit pypdf fpdf
